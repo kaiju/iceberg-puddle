@@ -14,7 +14,3 @@ Do you just want to get some development work done? Do you just want to stand up
 
 `docker compose up` or `podman compose up` depending on what flavor of psycho you are.
 
-## TODO
-
-- Is there a way to make Garage shut up? Log-spamming every single GetClusterStatus/GetClusterLayout API request from the health check seems not ideal.
-
