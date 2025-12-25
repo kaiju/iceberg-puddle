@@ -1,0 +1,87 @@
+---
+services:
+
+  lakekeeper:
+    image: &lakekeeper-image ${LAKEKEEPER__SERVER_IMAGE:-quay.io/lakekeeper/catalog:latest-main}
+    pull_policy: &lakekeeper-pull-policy always
+    environment: &lakekeeper-environment
+      - LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!
+      - LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@postgres:5432/postgres
+      - LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@postgres:5432/postgres
+      - LAKEKEEPER__AUTHZ_BACKEND=allowall
+    command: [ "serve" ]
+    healthcheck:
+      test: [ "CMD", "/home/nonroot/lakekeeper", "healthcheck" ]
+      interval: 1s
+      timeout: 10s
+      retries: 3
+      start_period: 3s
+    ports:
+      - "8181:8181"
+    depends_on:
+      lakekeeper-migrate:
+        condition: service_completed_successfully
+
+  lakekeeper-migrate:
+    image: *lakekeeper-image
+    pull_policy: *lakekeeper-pull-policy
+    environment: *lakekeeper-environment
+    restart: "no"
+    command: [ "migrate" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -p 5432 -d postgres" ]
+      interval: 2s
+      timeout: 10s
+      retries: 2
+      start_period: 10s
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  garage:
+    image: &garage-image dxflrs/garage:v2.1.0
+    volumes: &garage-volumes
+      - garage-data:/garage-data  
+      - ./garage.toml:/etc/garage.toml
+    healthcheck:
+      test: ["CMD", "/garage", "status"] # unneccessary amount of logspam
+      interval: 1s
+      timeout: 10s
+      retries: 3
+      start_period: 3s
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3902:3902"
+      - "3903:3903"
+
+  bootstrap:
+    build:
+      context: images/bootstrap/
+      dockerfile: Containerfile
+    volumes: *garage-volumes
+    restart: "no"
+    depends_on:
+      garage:
+        condition: service_healthy
+      lakekeeper:
+        condition: service_healthy
+    entrypoint: "/bin/sh"
+    command:
+      - "-c"
+      - |-
+          /garage_bootstrap.sh
+          /lakekeeper_bootstrap.sh
+
+volumes:
+  garage-data:
+  postgres-data:
+
