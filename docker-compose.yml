@@ -48,11 +48,13 @@ services:
 
   garage:
     image: &garage-image dxflrs/garage:v2.1.0
+    environment:
+      RUST_LOG: "garage_net::netapp=warn,garage_api_admin::api_server=warn" # no more healthcheck logspam
     volumes: &garage-volumes
       - garage-data:/garage-data  
-      - ./garage.toml:/etc/garage.toml
+      - ./config/garage.toml:/etc/garage.toml
     healthcheck:
-      test: ["CMD", "/garage", "status"] # unneccessary amount of logspam
+      test: ["CMD", "/garage", "status"]
       interval: 1s
       timeout: 10s
       retries: 3
