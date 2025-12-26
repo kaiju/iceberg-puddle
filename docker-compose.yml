@@ -1,50 +1,32 @@
 ---
 services:
 
-  lakekeeper:
-    image: &lakekeeper-image ${LAKEKEEPER__SERVER_IMAGE:-quay.io/lakekeeper/catalog:latest-main}
-    pull_policy: &lakekeeper-pull-policy always
-    environment: &lakekeeper-environment
-      - LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!
-      - LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@postgres:5432/postgres
-      - LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@postgres:5432/postgres
-      - LAKEKEEPER__AUTHZ_BACKEND=allowall
-    command: [ "serve" ]
-    healthcheck:
-      test: [ "CMD", "/home/nonroot/lakekeeper", "healthcheck" ]
-      interval: 1s
-      timeout: 10s
-      retries: 3
-      start_period: 3s
+  rest:
+    image: apache/iceberg-rest-fixture
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully 
     ports:
       - "8181:8181"
-    depends_on:
-      lakekeeper-migrate:
-        condition: service_completed_successfully
-
-  lakekeeper-migrate:
-    image: *lakekeeper-image
-    pull_policy: *lakekeeper-pull-policy
-    environment: *lakekeeper-environment
-    restart: "no"
-    command: [ "migrate" ]
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  postgres:
-    image: postgres:17
-    environment:
-      - POSTGRES_PASSWORD=postgres
-      - PGDATA=/var/lib/postgresql/data/pgdata
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -p 5432 -d postgres" ]
-      interval: 2s
-      timeout: 10s
-      retries: 2
-      start_period: 10s
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - secrets:/run/secrets
+      - rest-data:/data
+    environment:
+      - CATALOG_WAREHOUSE=s3://datastore
+      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
+      - CATALOG_S3_ENDPOINT=http://garage:3900
+      - CATALOG_S3_PATH__STYLE__ACCESS=true
+      - CATALOG_URI=jdbc:sqlite:/data/iceberg_catalog.db
+      # Does Garage seriously not support aws chunked encoding? Huh.
+      - JAVA_TOOL_OPTIONS=-Daws.requestChecksumCalculation=WHEN_REQUIRED -Daws.responseChecksumValidation=WHEN_REQUIRED
+    entrypoint: "/bin/sh"
+    command:
+      - "-c"
+      - |-
+          export AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws-access-key-id)"
+          export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws-secret-access-key)"
+          export AWS_REGION=garage
+          java -jar iceberg-rest-adapter.jar
 
   garage:
     image: &garage-image dxflrs/garage:v2.1.0
@@ -53,6 +35,7 @@ services:
     volumes: &garage-volumes
       - garage-data:/garage-data  
       - ./config/garage.toml:/etc/garage.toml
+      - secrets:/run/secrets
     healthcheck:
       test: ["CMD", "/garage", "status"]
       interval: 1s
@@ -74,16 +57,14 @@ services:
     depends_on:
       garage:
         condition: service_healthy
-      lakekeeper:
-        condition: service_healthy
     entrypoint: "/bin/sh"
     command:
       - "-c"
       - |-
           /garage_bootstrap.sh
-          /lakekeeper_bootstrap.sh
 
 volumes:
+  secrets:
+  rest-data:
   garage-data:
-  postgres-data:
 

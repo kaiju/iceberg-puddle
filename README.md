@@ -8,8 +8,7 @@ Do you just want to get some development work done? Do you just want to stand up
 
 ## Components
 
-- [Lakekeeper](https://docs.lakekeeper.io/): Iceberg REST catalog
-- [PostgreSQL](https://www.postgresql.org/): Persistentence layer for Lakekeeper
+- [iceberg-rest-image](https://github.com/databricks/iceberg-rest-image): Iceberg REST catalog
 - [Garage](https://garagehq.deuxfleurs.fr/): Object storage
 
 ## Usage

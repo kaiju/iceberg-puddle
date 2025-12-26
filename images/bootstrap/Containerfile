@@ -3,5 +3,4 @@ FROM alpine:3
 RUN apk add --no-cache jq curl 
 COPY --from=garage /garage /garage
 COPY --chmod=0744 garage_bootstrap.sh /garage_bootstrap.sh
-COPY --chmod=0744 lakekeeper_bootstrap.sh /lakekeeper_bootstrap.sh
 

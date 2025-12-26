@@ -26,12 +26,15 @@ fi
 
 KEY_INFO="$(/garage json-api GetKeyInfo '{"search": "storage-user", "showSecretKey": true}')"
 
+echo "$(echo "$KEY_INFO" | jq -r '.accessKeyId')" > /run/secrets/aws-access-key-id
+echo "$(echo "$KEY_INFO" | jq -r '.secretAccessKey')" > /run/secrets/aws-secret-access-key
+
 echo "-----------------------------------------"
 echo "🎉 GARAGE BOOTSTRAP COMPLETE"
 echo "-----------------------------------------"
 
 echo "Access your object storage with the following config:" 
-echo "export AWS_ACCESS_KEY_ID=$(echo "$KEY_INFO" | jq -r '.accessKeyId')"
-echo "export AWS_SECRET_ACCESS_KEY=$(echo "$KEY_INFO" | jq -r '.secretAccessKey')"
+echo "export AWS_ACCESS_KEY_ID=$(cat /run/secrets/aws-access-key-id)"
+echo "export AWS_SECRET_ACCESS_KEY=$(cat /run/secrets/aws-secret-access-key)"
 echo "export AWS_DEFAULT_REGION=garage"
 echo "export AWS_ENDPOINT_URL=http://localhost:3900"
