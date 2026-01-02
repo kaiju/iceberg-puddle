@@ -1,5 +1,5 @@
-metadata_dir = "/garage-data/meta"
-data_dir = "/garage-data/data"
+metadata_dir = "/data/garage/meta"
+data_dir = "/data/garage/data"
 db_engine = "sqlite"
 
 replication_factor = 1

@@ -8,23 +8,22 @@ services:
     ports:
       - "8181:8181"
     volumes:
-      - secrets:/run/secrets
-      - rest-data:/data
+      - ./configs:/configs
+      - data:/data
     environment:
       - CATALOG_WAREHOUSE=s3://datastore
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://garage:3900
       - CATALOG_S3_PATH__STYLE__ACCESS=true
-      - CATALOG_URI=jdbc:sqlite:/data/iceberg_catalog.db
+      - CATALOG_URI=jdbc:sqlite:/data/rest/iceberg_catalog.db
       # Does Garage seriously not support aws chunked encoding? Huh.
       - JAVA_TOOL_OPTIONS=-Daws.requestChecksumCalculation=WHEN_REQUIRED -Daws.responseChecksumValidation=WHEN_REQUIRED
     entrypoint: "/bin/sh"
     command:
       - "-c"
       - |-
-        export AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws-access-key-id)"
-        export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws-secret-access-key)"
-        export AWS_REGION=garage
+        mkdir -p /data/rest
+        . /configs/awscli.env
         java -jar iceberg-rest-adapter.jar
 
   garage:
@@ -32,9 +31,9 @@ services:
     environment:
       RUST_LOG: "garage_net::netapp=warn,garage_api_admin::api_server=warn" # no more healthcheck logspam
     volumes: &garage-volumes
-      - garage-data:/garage-data
-      - ./config/garage.toml:/etc/garage.toml
-      - secrets:/run/secrets
+      - data:/data
+      - ./garage.toml:/etc/garage.toml
+      - ./configs:/configs
     healthcheck:
       test: ["CMD", "/garage", "status"]
       interval: 1s
@@ -88,17 +87,17 @@ services:
 
         KEY_INFO="$(/garage json-api GetKeyInfo '{"search": "storage-user", "showSecretKey": true}')"
 
-        echo "$(echo "$$KEY_INFO" | jq -r '.accessKeyId')" > /run/secrets/aws-access-key-id
-        echo "$(echo "$$KEY_INFO" | jq -r '.secretAccessKey')" > /run/secrets/aws-secret-access-key
+        AWS_ACCESS_KEY_ID="$(echo "$$KEY_INFO" | jq -r '.accessKeyId')"
+        AWS_SECRET_ACCESS_KEY="$(echo "$$KEY_INFO" | jq -r '.secretAccessKey')"
 
-        cat <<EOF > /run/secrets/awscli.env
-        export AWS_ACCESS_KEY_ID=$(cat /run/secrets/aws-access-key-id)
-        export AWS_SECRET_ACCESS_KEY=$(cat /run/secrets/aws-secret-access-key)
-        export AWS_DEFAULT_REGION=garage
+        cat <<EOF > /configs/awscli.env
+        export AWS_ACCESS_KEY_ID=$$AWS_ACCESS_KEY_ID
+        export AWS_SECRET_ACCESS_KEY=$$AWS_SECRET_ACCESS_KEY
+        export AWS_REGION=garage
         export AWS_ENDPOINT_URL=http://localhost:3900
         EOF
 
-        cat <<EOF > /run/secrets/duckdb.sql
+        cat <<EOF > /configs/duckdb.sql
         INSTALL iceberg;
         LOAD iceberg;
 
@@ -106,8 +105,8 @@ services:
         CREATE SECRET s3 (
             TYPE s3,
             PROVIDER config,
-            KEY_ID '$(cat /run/secrets/aws-access-key-id)',
-            SECRET '$(cat /run/secrets/aws-secret-access-key)',
+            KEY_ID '$$AWS_ACCESS_KEY_ID',
+            SECRET '$$AWS_SECRET_ACCESS_KEY',
             REGION 'garage',
             ENDPOINT 'localhost:3900',
             URL_STYLE 'path',
@@ -122,26 +121,25 @@ services:
         );
         EOF
 
-        cat <<EOF > /run/secrets/.pyiceberg.yaml
+        cat <<EOF > /configs/.pyiceberg.yaml
         ---
         catalog:
           default:
             uri: http://locahost:8181
+            warehouse: datastore
             s3.endpoint: http://localhost:3900
-            s3.access-key-id: $(cat /run/secrets/aws-access-key-id)
-            s3.secret-access-key: $(cat /run/secrets/aws-secret-access-key)
+            s3.access-key-id: $$AWS_ACCESS_KEY_ID
+            s3.secret-access-key: $$AWS_SECRET_ACCESS_KEY
             s3.path-style-access: true
             s3.region: garage
         EOF
 
         echo "-----------------------------------------"
-        echo "🎉 GARAGE BOOTSTRAP COMPLETE"
+        echo "🎉 BOOTSTRAP COMPLETE"
         echo "-----------------------------------------"
 
         echo "Access your object storage with the following config:"
-        cat /run/secrets/awscli.env
+        cat /configs/awscli.env
 
 volumes:
-  secrets:
-  rest-data:
-  garage-data:
+  data:
