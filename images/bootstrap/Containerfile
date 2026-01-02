@@ -1,6 +1,4 @@
 FROM dxflrs/garage:v2.1.0 AS garage
 FROM alpine:3
-RUN apk add --no-cache jq curl 
+RUN apk add --no-cache jq curl
 COPY --from=garage /garage /garage
-COPY --chmod=0744 garage_bootstrap.sh /garage_bootstrap.sh
-
