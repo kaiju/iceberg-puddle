@@ -22,7 +22,6 @@ services:
     command:
       - "-c"
       - |-
-        mkdir -p /data/rest
         . /configs/awscli.env
         java -jar iceberg-rest-adapter.jar
 
@@ -59,7 +58,9 @@ services:
     command:
       - "-c"
       - |-
-        #!/usr/bin/env sh
+        # Set up data path for iceberg-rest-fixture
+        mkdir -p /data/rest
+        chown 1000:1000 /data/rest
 
         GARAGE_RPC_HOST="$(/garage node id -q)"
         CLUSTER_STATUS="$(/garage json-api GetClusterStatus)"
