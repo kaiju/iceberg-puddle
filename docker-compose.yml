@@ -99,8 +99,12 @@ services:
         EOF
 
         cat <<EOF > /configs/duckdb.sql
+        INSTALL avro;
+        LOAD avro;
         INSTALL iceberg;
         LOAD iceberg;
+        INSTALL httpfs;
+        LOAD httpfs;
 
         -- Set up S3 access
         CREATE SECRET s3 (
